@@ -1,7 +1,7 @@
 package xinhao.foodshare.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import xinhao.foodshare.entity.Follow;
+import xinhao.foodshare.pojo.entity.Follows;
 
-public interface FollowMapper extends BaseMapper<Follow> {
+public interface FollowMapper extends BaseMapper<Follows> {
 }
