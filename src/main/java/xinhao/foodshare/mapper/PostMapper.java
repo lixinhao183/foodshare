@@ -6,4 +6,5 @@ import xinhao.foodshare.pojo.entity.Post;
 
 @Mapper
 public interface PostMapper extends BaseMapper<Post> {
+    
 }

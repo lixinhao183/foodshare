@@ -16,7 +16,8 @@ import java.util.UUID;
 public class JwtUtil {
 
     /** Token 有效期：1 小时 */
-    public static final long JWT_TTL = 60 * 60 * 1000L;
+    /* public static final long JWT_TTL = 60 * 60 * 1000L; */
+    public static final long JWT_TTL = 60 * 60 * 100000L;
 
     /**
      * ⚠️ HS256 要求至少 32 字节密钥

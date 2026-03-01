@@ -7,13 +7,19 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 //帖子统计表
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@TableName("post_state")
 public class PostState implements Serializable {
 
     //帖子ID
+    @TableId(type = IdType.AUTO)
     private Long postId;
 
     //点赞数

@@ -7,16 +7,22 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@TableName("post")
 public class Post implements Serializable {
 
     //帖子ID
+    @TableId(type = IdType.AUTO)
     private Long postId;
 
     //作者ID
-    private Long userID;
+    private Long userId;
 
     //帖子标题
     private String title;
@@ -27,11 +33,8 @@ public class Post implements Serializable {
     //图片JSON数组
     private String images;
 
-    //视频JSON数组
-    private String videos;
-
     //标签JSON数组
-    private String tags;
+    private String tag;
 
     //价格
     private Float price;
@@ -65,5 +68,9 @@ public class Post implements Serializable {
 
     //评论次数(冗余字段)
     private Long commentCount;
+    
+    //收藏次数(冗余字段)
+    private Long favouriteCount;
+
 
 }

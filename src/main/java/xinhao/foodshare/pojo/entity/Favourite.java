@@ -8,12 +8,18 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@TableName("favourite")
 public class Favourite implements Serializable {
 
     //收藏ID
+    @TableId(type = IdType.AUTO)
     private Long favouriteId;
 
     //用户ID

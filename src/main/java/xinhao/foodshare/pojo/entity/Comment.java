@@ -8,12 +8,19 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@TableName("comment")
 public class Comment implements Serializable {
 
     //评论ID
+    @TableId(type = IdType.AUTO)
     private Long commentId;
 
     //帖子ID
@@ -35,5 +42,19 @@ public class Comment implements Serializable {
     private LocalDateTime updateTime;
 
     //点赞数(冗余字段)
-    private Integer likeCount;
+    @TableField(exist = false)
+    private Long likeCount;
+
+    //评论者用户名
+    @TableField(exist = false)
+    private String username;
+
+    //评论者头像
+    @TableField(exist = false)
+    private String avatar;
+
+    // 当前用户状态
+    @TableField(exist = false)
+    private Boolean isLiked;
+
 }
