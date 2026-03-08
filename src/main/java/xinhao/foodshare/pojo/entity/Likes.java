@@ -7,8 +7,6 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 @Data
@@ -16,10 +14,6 @@ import com.baomidou.mybatisplus.annotation.TableName;
 @AllArgsConstructor
 @TableName(value="likes")
 public class Likes implements Serializable {
-
-    //点赞记录ID
-    @TableId(type = IdType.AUTO)
-    private Long likeId;
 
     //用户ID
     private Long userId;              // 点赞用户ID

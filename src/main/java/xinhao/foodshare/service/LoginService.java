@@ -1,10 +1,20 @@
 package xinhao.foodshare.service;
 
+import java.util.Map;
+
 import xinhao.foodshare.pojo.entity.User;
-import xinhao.foodshare.result.ResponseResult;
 
 public interface LoginService {
-    ResponseResult login(User user);
+    /**
+     * 用户登录
+     * @param user 用户登录信息
+     * @return 登录结果
+     */
+    Map login(User user);
 
-    ResponseResult logout();
+    /**
+     * 用户注销登录
+     * @return 注销结果
+     */
+    void logout();
 }

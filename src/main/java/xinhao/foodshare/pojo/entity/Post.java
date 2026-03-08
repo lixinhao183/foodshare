@@ -10,7 +10,9 @@ import java.time.LocalDateTime;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-
+/**
+ * 帖子表
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -43,10 +45,7 @@ public class Post implements Serializable {
     private Integer recommendScore;
 
     //位置分类(0校内1校外2外卖)
-    private Integer locationType;
-
-    //校内位置
-    private String campusArea;
+    private Integer local;
 
     //审核状态(0未审核1未通过2已通过)
     private Integer status;

@@ -23,6 +23,11 @@ public class LoginUser implements UserDetails {
     //存储权限信息
     private List<String> permissions;
 
+    /**
+     * 构造方法
+     * @param user 用户实体类
+     * @param permissions 权限列表
+     */
     public LoginUser(User user, List<String> permissions) {
         this.user = user;
         this.permissions = permissions;
@@ -31,6 +36,7 @@ public class LoginUser implements UserDetails {
     //存储SpringSecurity所需要的权限信息的集合
     @JsonIgnore
     private List<SimpleGrantedAuthority> authorities;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         if (authorities != null){
@@ -43,31 +49,37 @@ public class LoginUser implements UserDetails {
         return authorities;
     }
 
+    @JsonIgnore
     @Override
     public String getPassword() {
         return user.getPassword();
     }
 
+    @JsonIgnore
     @Override
     public String getUsername() {
         return user.getUsername();
     }
-
+    
+    @JsonIgnore
     @Override
     public boolean isAccountNonExpired() {
         return true;
     }
-
+    
+    @JsonIgnore
     @Override
     public boolean isAccountNonLocked() {
         return true;
     }
-
+    
+    @JsonIgnore
     @Override
     public boolean isCredentialsNonExpired() {
         return true;
     }
-
+    
+    @JsonIgnore
     @Override
     public boolean isEnabled() {
         return true;

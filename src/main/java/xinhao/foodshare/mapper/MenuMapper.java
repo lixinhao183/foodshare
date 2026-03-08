@@ -1,7 +1,8 @@
 package xinhao.foodshare.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import xinhao.foodshare.pojo.entity.Menu;
+
+import xinhao.foodshare.pojo.entity.permission.Menu;
 
 import java.util.List;
 

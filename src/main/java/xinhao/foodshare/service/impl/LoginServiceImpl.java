@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import xinhao.foodshare.cache.RedisCache;
 import xinhao.foodshare.pojo.entity.User;
 import xinhao.foodshare.pojo.vo.LoginUser;
-import xinhao.foodshare.result.ResponseResult;
 import xinhao.foodshare.service.LoginService;
 import xinhao.foodshare.utils.JwtUtil;
 import java.util.concurrent.TimeUnit;
@@ -35,7 +34,7 @@ public class LoginServiceImpl implements LoginService {
      */
     @Override
     @Transactional
-    public ResponseResult login(User user) {
+    public Map login(User user) {
         //AuthenticationManager authenticate进行用户认证
         UsernamePasswordAuthenticationToken authenticationToken =
                 new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword());
@@ -62,7 +61,7 @@ public class LoginServiceImpl implements LoginService {
 
         //把完整的用户信息存入redis,userid作为key
         redisCache.setCacheObject("login:" + userid, loginUser,(int)JwtUtil.JWT_TTL / 1000,TimeUnit.SECONDS);
-        return ResponseResult.success("登录成功", map);
+        return map;
     }
 
     /**
@@ -70,14 +69,11 @@ public class LoginServiceImpl implements LoginService {
      * @return 退出登录结果
      */
     @Override
-    public ResponseResult logout() {
+    public void logout() {
         //获取SecurityContextHolder中的用户id
         Long userId = SecurityUtils.getUserId();
         //删除redis中的值
         redisCache.deleteObject("login:" + userId);
-        return ResponseResult.success("退出登录成功");
     }
 
-    
-    
 }

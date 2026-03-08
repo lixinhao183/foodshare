@@ -55,6 +55,6 @@ public class Comment implements Serializable {
 
     // 当前用户状态
     @TableField(exist = false)
-    private Boolean isLiked;
+    private Integer isLiked;
 
 }

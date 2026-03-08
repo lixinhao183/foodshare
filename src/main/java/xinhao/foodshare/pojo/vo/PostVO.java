@@ -5,13 +5,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import xinhao.foodshare.pojo.entity.Comment;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class PostVO{
+public class PostVO implements Serializable{
     // 帖子ID
     private Long postId;
     // 作者ID
@@ -28,8 +29,7 @@ public class PostVO{
     private String tags;
     private Float price;
     private Integer recommendScore;
-    private Integer locationType;
-    private String campusArea;
+    private Integer local;
     
     // 统计数据
     private Long viewCount;
@@ -41,9 +41,9 @@ public class PostVO{
     private LocalDateTime createTime;
     
     // 当前用户状态 是否点赞
-    private Boolean isLiked;
+    private Integer isLiked;
     // 是否收藏
-    private Boolean isFavourite;
+    private Integer isFavourite;
     
     // 评论列表
     private List<Comment> comments;

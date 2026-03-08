@@ -1,11 +1,18 @@
 package xinhao.foodshare.controller;
 
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import xinhao.foodshare.pojo.dto.UserRegisterDTO;
 import xinhao.foodshare.pojo.dto.UserUpdateDTO;
+import xinhao.foodshare.pojo.entity.Post;
 import xinhao.foodshare.pojo.entity.User;
+import xinhao.foodshare.pojo.entity.ViewHistory;
+import xinhao.foodshare.pojo.vo.FollowsVO;
 import xinhao.foodshare.pojo.vo.UserVO;
 import xinhao.foodshare.result.ResponseResult;
 import xinhao.foodshare.service.LoginService;
@@ -34,7 +41,8 @@ public class UserController {
     @PostMapping("/login")
     public ResponseResult login(@RequestBody User user) {
         log.info("用户登录:{}", user.getUsername());
-        return loginService.login(user);
+        Map map = loginService.login(user);
+        return ResponseResult.success(map);
     }
 
     /**
@@ -43,8 +51,9 @@ public class UserController {
      */
     @GetMapping("/logout")
     public ResponseResult logout() {
-        log.info("用户退出登录:{}");
-        return loginService.logout();
+        log.info("用户退出登录");
+        loginService.logout();
+        return ResponseResult.success("退出登录成功");
     }
 
     /**
@@ -55,7 +64,8 @@ public class UserController {
     @PostMapping("/register")
     public ResponseResult<UserVO> register(@RequestBody UserRegisterDTO userRegisterDTO) {
         log.info("用户注册:{}", userRegisterDTO);
-        return userService.register(userRegisterDTO);
+        UserVO userVO = userService.register(userRegisterDTO);
+        return ResponseResult.success(userVO);
     }
 
     /**
@@ -64,9 +74,10 @@ public class UserController {
      * @return 更新结果
      */
     @PutMapping("/update")
-    public ResponseResult<Void> update(@RequestBody UserUpdateDTO userUpdateDTO) {
+    public ResponseResult update(@RequestBody UserUpdateDTO userUpdateDTO) {
         log.info("用户更新:{}", userUpdateDTO);
-        return userService.update(userUpdateDTO);
+        userService.update(userUpdateDTO);
+        return ResponseResult.success();
     }
 
     /**
@@ -75,7 +86,43 @@ public class UserController {
      */
     @GetMapping("/info")
     public ResponseResult<UserVO> info() {
-        return userService.info();
+        log.info("用户获取个人信息");
+        UserVO userVO = userService.info();
+        return ResponseResult.success(userVO);
     }
     
+    /**
+     * 查询关注用户
+     * @return 关注用户列表
+     */
+    @GetMapping("/follows")
+    public ResponseResult<List<FollowsVO>> follow() {
+        log.info("用户查询关注用户");
+        List<FollowsVO> followsVOList = userService.follow();
+        return ResponseResult.success(followsVOList);
+    }
+
+    /**
+     * 查询游览记录
+     * @return 游览记录列表
+     */
+    @GetMapping("/viewhistory")
+    public ResponseResult<List<ViewHistory>> viewHistory() {
+        log.info("用户查询游览记录");
+        List<ViewHistory> viewHistoryList = userService.viewHistory();
+        return ResponseResult.success(viewHistoryList);
+    }
+
+     /**
+      * 查询收藏帖子
+      * @return 收藏帖子列表
+      */
+     @GetMapping("/favourite")
+     public ResponseResult<List<Post>> favourite() {
+        log.info("用户查询收藏帖子");
+        List<Post> postList = userService.favourite();
+        return ResponseResult.success(postList);
+     }
 }
+
+

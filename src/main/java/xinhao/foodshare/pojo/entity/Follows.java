@@ -13,11 +13,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class Follows implements Serializable {
 
-    //主键,关注记录id
-    private Long followId;
-
-    //关注者id
-    private Long followerId;
+    //用户id
+    private Long userId;
 
     //被关注者id
     private Long followedId;

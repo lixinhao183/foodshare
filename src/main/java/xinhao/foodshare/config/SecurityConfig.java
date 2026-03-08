@@ -32,6 +32,9 @@ public class SecurityConfig{
     @Autowired
     private AuthenticationEntryPointImpl authenticationEntryPointImpl;
 
+    /**
+     * 安全过滤器链
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -51,11 +54,17 @@ public class SecurityConfig{
         return http.build();
     }
 
+    /**
+     * 密码加密存储
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * 认证管理器
+     */
     @Bean
     public AuthenticationManager authenticationManager(
             AuthenticationConfiguration authConfig) throws Exception {

@@ -23,7 +23,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 捕获其他未知异常
+     * 捕获其他未知异常 (Exception)
      */
     @ExceptionHandler(Exception.class)
     public ResponseResult exceptionHandler(Exception e) {

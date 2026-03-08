@@ -8,13 +8,20 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 //游览足迹表
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@TableName(value="view_history")
+
 public class ViewHistory implements Serializable {
 
     //游览记录ID
+    @TableId(type = IdType.AUTO)
     private Long viewId;
 
     //用户ID
@@ -24,6 +31,6 @@ public class ViewHistory implements Serializable {
     private Long postId;
 
     //游览时间
-    private LocalDateTime createTime;
+    private LocalDateTime viewTime;
 
 }
