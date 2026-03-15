@@ -82,7 +82,7 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
 
     /**
      * 分页查询帖子列表
-     * 用于前端首页或发现页的无限加载流
+     * 用于前端首页或发现页
      *
      * @param page     当前页码
      * @param pageSize 每页显示数量

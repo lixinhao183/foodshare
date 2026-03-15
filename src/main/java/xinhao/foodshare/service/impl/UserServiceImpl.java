@@ -707,6 +707,7 @@ public class UserServiceImpl implements UserService {
         Page<Post> postPage = new Page<>(page, pageSize);
         LambdaQueryWrapper<Post> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(Post::getUserId, userId)
+                .eq(Post::getIsDeleted, 0) // 仅查询未删除的帖子
                 .orderByDesc(Post::getCreateTime);
         postMapper.selectPage(postPage, queryWrapper);
 
