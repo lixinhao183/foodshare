@@ -18,6 +18,11 @@ public class FollowsVO implements Serializable{
     private Long userId;
 
     /**
+     * 用户名
+     */
+    private String username;
+
+    /**
      * 备注名
      */
     private String remarkName;

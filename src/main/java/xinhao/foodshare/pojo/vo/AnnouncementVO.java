@@ -1,30 +1,24 @@
-package xinhao.foodshare.pojo.entity;
+package xinhao.foodshare.pojo.vo;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
-
 import lombok.NoArgsConstructor;
-
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-
-//系统公告表
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("announcement")
-public class Announcement implements Serializable {
+public class AnnouncementVO implements Serializable {
 
     //公告ID
-    @TableId(type = IdType.AUTO)
     private Long announcementId;
 
     //发布者ID
     private Long userId;
+    
+    //发布者用户名
+    private String username;
 
     //标题
     private String title;
@@ -37,8 +31,4 @@ public class Announcement implements Serializable {
 
     //发布时间
     private LocalDateTime createTime;
-
-    //更新时间
-    private LocalDateTime updateTime;
-
 }

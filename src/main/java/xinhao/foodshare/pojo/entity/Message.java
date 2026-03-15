@@ -7,13 +7,18 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 //私信与系统通知表
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@TableName("message")
 public class Message implements Serializable {
 
     //消息ID
+    @TableId
     private Long messageId;
 
     //发送方ID

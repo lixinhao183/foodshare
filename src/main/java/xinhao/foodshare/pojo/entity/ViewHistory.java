@@ -16,7 +16,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName(value="view_history")
+@TableName("view_history")
 
 public class ViewHistory implements Serializable {
 

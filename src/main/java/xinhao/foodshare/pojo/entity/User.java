@@ -44,7 +44,7 @@ public class User implements Serializable {
     //邮箱
     private String email;
 
-    //角色(0超级管理员1管理员2普通用户)
+    //角色（01管理员2登录用户3游客）
     private Integer role;
 
     //用户状态(0启用,1禁用)

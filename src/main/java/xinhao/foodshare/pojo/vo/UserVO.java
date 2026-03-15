@@ -36,4 +36,19 @@ public class UserVO implements Serializable {
      */
     private String email;
 
+    /**
+     * 关注数
+     */
+    private Long followCount;
+
+    /**
+     * 粉丝数
+     */
+    private Long fansCount;
+
+    /**
+     * 用户状态(0正常1禁用)
+     */
+    private Integer status;
+
 }

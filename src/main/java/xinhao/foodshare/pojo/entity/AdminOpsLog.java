@@ -23,6 +23,12 @@ public class AdminOpsLog implements Serializable {
     //管理员ID
     private Long adminId;
 
+    //管理员用户名
+    private String username;
+
+    //管理员角色
+    private String roleName;
+
     //操作类型
     private String actionType;
 

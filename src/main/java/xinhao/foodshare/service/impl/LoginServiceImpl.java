@@ -51,13 +51,13 @@ public class LoginServiceImpl implements LoginService {
         Map<String, String> map = new HashMap<>();
         map.put("token", jwt);
 
-        // 实现单点登录：先检查是否有其他活跃会话，如果有则删除
+/*         // 实现单点登录：先检查是否有其他活跃会话，如果有则删除
         String oldSessionKey = "login:" + userid;
         Object oldSession = redisCache.getCacheObject(oldSessionKey);
         if (oldSession != null) {
             // 如果用户已在其他地方登录，删除旧会话
             redisCache.deleteObject(oldSessionKey);
-        }
+        } */
 
         //把完整的用户信息存入redis,userid作为key
         redisCache.setCacheObject("login:" + userid, loginUser,(int)JwtUtil.JWT_TTL / 1000,TimeUnit.SECONDS);

@@ -7,12 +7,18 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@TableName("search_history")
 public class SearchHistory implements Serializable {
 
     //搜索历史ID
+    @TableId(type = IdType.AUTO)
     private Long historyId;
 
     //用户ID

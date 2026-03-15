@@ -25,8 +25,12 @@ public class PostVO implements Serializable{
     // 帖子内容
     private String title;
     private String content;
-    private String images;
-    private String tags;
+    
+    // 图片列表 (JSON字符串转List)
+    private List<String> images;
+    // 标签列表 (JSON字符串转List)
+    private List<String> tags;
+    
     private Float price;
     private Integer recommendScore;
     private Integer local;
@@ -39,6 +43,9 @@ public class PostVO implements Serializable{
     
     // 时间
     private LocalDateTime createTime;
+    
+    //审核状态(0未审核1未通过2已通过)
+    private Integer status;
     
     // 当前用户状态 是否点赞
     private Integer isLiked;

@@ -1,5 +1,6 @@
 package xinhao.foodshare.pojo.entity.permission;
 
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
@@ -21,6 +22,7 @@ public class RoleMenu {
     /**
      * 角色ID
      */
+    @TableId
     private Long roleId;
     /**
      * 菜单ID

@@ -4,11 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import xinhao.foodshare.cache.RedisCache;
 import xinhao.foodshare.mapper.CommentMapper;
@@ -16,23 +17,24 @@ import xinhao.foodshare.mapper.FavouriteMapper;
 import xinhao.foodshare.mapper.LikesMapper;
 import xinhao.foodshare.mapper.PostMapper;
 import xinhao.foodshare.mapper.PostStateMapper;
+import xinhao.foodshare.mapper.TagMapper;
 import xinhao.foodshare.mapper.UserMapper;
 import xinhao.foodshare.mapper.ViewHistoryMapper;
-import xinhao.foodshare.pojo.dto.PostDTO;
 import xinhao.foodshare.pojo.entity.Comment;
 import xinhao.foodshare.pojo.entity.Favourite;
 import xinhao.foodshare.pojo.entity.Likes;
 import xinhao.foodshare.pojo.entity.Post;
 import xinhao.foodshare.pojo.entity.PostState;
+import xinhao.foodshare.pojo.entity.Tag;
 import xinhao.foodshare.pojo.entity.User;
 import xinhao.foodshare.pojo.entity.ViewHistory;
 import xinhao.foodshare.pojo.vo.PostVO;
 import xinhao.foodshare.result.PageResult;
 import xinhao.foodshare.service.PostService;
+import xinhao.foodshare.utils.PostUtils;
 import xinhao.foodshare.utils.SecurityUtils;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +46,7 @@ import java.time.LocalDateTime;
  * 帖子服务实现类
  * 处理帖子相关的业务逻辑，如列表查询、发布等
  */
+
 @Service
 public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements PostService {
 
@@ -71,6 +74,12 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     @Autowired
     private ViewHistoryMapper viewHistoryMapper;
 
+    @Autowired
+    private PostUtils postUtils;
+
+    @Autowired
+    private TagMapper tagMapper;
+
     /**
      * 分页查询帖子列表
      * 用于前端首页或发现页的无限加载流
@@ -78,140 +87,152 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
      * @param page     当前页码
      * @param pageSize 每页显示数量
      * @param sort     排序方式，"new" 按发布时间倒序，"hot" 按点赞数倒序
+     * @param local    地点
+     * @param keyword  搜索关键词
+     * @param tags     标签列表
      * @return 封装好的分页结果，包含帖子详情、作者信息及当前用户的点赞状态
      */
-
     @Override
-    public PageResult<PostVO> pageQuery(Integer page, Integer pageSize, String sort, String local) {
-        // 构造缓存key
-        String cacheKey = "post_page:" + sort + ":" + page + ":" + pageSize + ":" + local;
+    public PageResult<PostVO> pageQuery(Integer page, Integer pageSize, String sort, String local, String price,
+            String keyword, List<String> tags) {
+        // 构造缓存key (包含搜索关键词和标签)
+        String cacheKey = "post_page:" + sort + ":" + page + "_" + pageSize + "_" +
+                (local != null ? local : "all") + ":" +
+                (price != null ? price : "all") + ":" +
+                (keyword != null ? keyword : "all") + ":" +
+                (tags != null && !tags.isEmpty() ? String.join(",", tags) : "all");
 
         // 1. 尝试从缓存获取 (只有查询热门帖子时才使用缓存)
         PageResult<PostVO> result = null;
         if ("hot".equals(sort)) {
             result = redisCache.getCacheObject(cacheKey);
+            if (result != null) {
+                return result;
+            }
         }
 
-        // 2. 如果缓存未命中，查询数据库
-        if (result == null) {
-            // 1. 基础分页查询
-            Page<Post> postPage = new Page<>(page, pageSize);
-            LambdaQueryWrapper<Post> queryWrapper = new LambdaQueryWrapper<>();
-            // 过滤条件：只能看到审核通过(status=2) 且 未被删除(isDeleted=0) 的帖子
-            queryWrapper.eq(Post::getStatus, 2)
-                    .eq(Post::getIsDeleted, 0);
+        // 2. 基础分页查询
+        Page<Post> postPage = new Page<>(page, pageSize);
+        LambdaQueryWrapper<Post> queryWrapper = new LambdaQueryWrapper<>();
+        // 过滤条件：只能看到审核通过(status=2) 且 未被删除(isDeleted=0) 的帖子
+        queryWrapper.eq(Post::getStatus, 2)
+                .eq(Post::getIsDeleted, 0);
 
-            // 如果有位置参数，添加位置过滤条件
-            if (local != null && !local.isEmpty()) {
-                queryWrapper.eq(Post::getLocal, local);
-            }
+        // 如果有位置参数，添加位置过滤条件
+        if (local != null && !local.isEmpty()) {
+            queryWrapper.eq(Post::getLocal, local);
+        }
 
-            // 根据排序参数添加排序条件
-            if ("new".equals(sort)) {
-                queryWrapper.orderByDesc(Post::getCreateTime);
-            } else if ("hot".equals(sort)) {
-                queryWrapper.orderByDesc(Post::getLikeCount);
-            } else {
-                // 默认排序：按发布时间倒序
-                queryWrapper.orderByDesc(Post::getCreateTime);
-            }
+        // 如果有价格参数，添加价格过滤条件
+        if (price != null && !price.isEmpty()) {
+            queryWrapper.and(wrapper -> wrapper
+                    .ge(Post::getPrice, price.split("-")[0])
+                    .le(Post::getPrice, price.split("-")[1]));
+        }
 
-            // 执行分页查询，结果会自动填充到 postPage 中
-            this.page(postPage, queryWrapper);
-
-            List<Post> records = postPage.getRecords();
-            if (records.isEmpty()) {
-                // 如果没有数据，直接返回空列表，避免后续空指针或无意义查询
-                return new PageResult<>(new ArrayList<>(), 0);
-            }
-
-            // 2. 批量查询作者信息
-            // 从帖子列表中提取所有作者ID
-            Set<Long> userIds = records.stream()
-                    .map(Post::getUserId)
-                    .collect(Collectors.toSet());
-
-            // 一次性查询所有相关用户，并转为 Map<UserId, User> 方便后续快速查找
-            Map<Long, User> userMap = userMapper.selectList(new LambdaQueryWrapper<User>().in(User::getUserId, userIds))
-                    .stream()
-                    .collect(Collectors.toMap(User::getUserId, u -> u));
-
-            // 提取当前页所有帖子的ID
-            List<Long> postIds = records.stream().map(Post::getPostId).collect(Collectors.toList());
-
-            // 批量查询帖子统计信息 (点赞数、评论数，收藏数，游览数)
-            Map<Long, PostState> stateMap = new HashMap<>();
-            if (!postIds.isEmpty()) {
-                List<PostState> postStates = postStateMapper.selectList(
-                        new LambdaQueryWrapper<PostState>().in(PostState::getPostId, postIds));
-                stateMap = postStates.stream()
-                        .collect(Collectors.toMap(PostState::getPostId, s -> s));
-            }
-
-            // 批量查询当前用户的点赞和收藏状态
-            Set<Long> likedPostIds = new java.util.HashSet<>();
-            Set<Long> favouritePostIds = new java.util.HashSet<>();
-            Long currentUserId = SecurityUtils.getUserId();
-            if (currentUserId != null && !postIds.isEmpty()) {
-                // 批量查询点赞
-                List<Likes> likesList = likesMapper.selectList(new LambdaQueryWrapper<Likes>()
-                        .eq(Likes::getUserId, currentUserId)
-                        .eq(Likes::getTargetType, 0)
-                        .in(Likes::getTargetId, postIds));
-                likedPostIds = likesList.stream().map(Likes::getTargetId).collect(Collectors.toSet());
-
-                // 批量查询收藏
-                List<Favourite> favouriteList = favouriteMapper.selectList(new LambdaQueryWrapper<Favourite>()
-                        .eq(Favourite::getUserId, currentUserId)
-                        .in(Favourite::getPostId, postIds));
-                favouritePostIds = favouriteList.stream().map(Favourite::getPostId).collect(Collectors.toSet());
-            }
-
-            // 4. 数据组装 (Entity -> VO)
-            List<PostVO> vos = new ArrayList<>();
-            for (Post post : records) {
-                PostVO vo = new PostVO();
-                // 1. 拷贝帖子基本信息
-                BeanUtils.copyProperties(post, vo);
-
-                // 2. 填充作者信息 (头像、用户名)
-                User user = userMap.get(post.getUserId());
-                if (user != null) {
-                    vo.setUsername(user.getUsername());
-                    vo.setAvatar(user.getImage());
-                    vo.setUserId(user.getUserId());
+        // 如果有标签参数，添加标签过滤条件 (OR 关系，只要包含其中一个标签即可)
+        if (tags != null && !tags.isEmpty()) {
+            queryWrapper.and(wrapper -> {
+                for (String tag : tags) {
+                    wrapper.or().like(Post::getTag, tag);
                 }
+            });
+        }
 
-                // 3. 填充统计数据
-                PostState state = stateMap.get(post.getPostId());
-                if (state != null) {
-                    vo.setLikeCount(state.getLikeCount());
-                    vo.setCommentCount(state.getCommentCount());
-                    vo.setViewCount(state.getViewCount());
-                    vo.setFavouriteCount(state.getFavouriteCount());
-                }
+        // 如果有搜索关键词，添加模糊查询条件 (标题或内容包含关键词)
+        if (keyword != null && !keyword.isEmpty()) {
+            queryWrapper.and(wrapper -> wrapper
+                    .like(Post::getTitle, keyword));
+        }
 
-                // 4. 填充用户交互状态
-                if (currentUserId != null) {
-                    vo.setIsLiked(likedPostIds.contains(post.getPostId()) ? 1 : 0);
-                    vo.setIsFavourite(favouritePostIds.contains(post.getPostId()) ? 1 : 0);
-                } else {
-                    vo.setIsLiked(0);
-                    vo.setIsFavourite(0);
-                }
+        // 根据排序参数添加排序条件
+        if ("new".equals(sort)) {
+            queryWrapper.orderByDesc(Post::getCreateTime);
+        } else if ("hot".equals(sort)) {
+            queryWrapper.orderByDesc(Post::getLikeCount);
+        } else {
+            // 默认排序：按发布时间倒序
+            queryWrapper.orderByDesc(Post::getCreateTime);
+        }
 
-                vos.add(vo);
-            }
+        // 执行分页查询，结果会自动填充到 postPage 中
+        this.page(postPage, queryWrapper);
 
-            result = new PageResult<>(vos, postPage.getTotal());
+        List<Post> records = postPage.getRecords();
+        if (records.isEmpty()) {
+            // 如果没有数据，直接返回空列表，避免后续空指针或无意义查询
+            return new PageResult<>(new ArrayList<>(), 0);
+        }
 
-            // 存入缓存，设置较短的过期时间（例如 30 分钟），保证列表时效性 (只有查询热门帖子时才缓存)
-            if ("hot".equals(sort)) {
-                redisCache.setCacheObject(cacheKey, result, 30, TimeUnit.MINUTES);
-            }
+        // 3. 调用工具类填充关联信息
+        List<PostVO> vos = postUtils.fillPostDetails(records);
+
+        result = new PageResult<>(vos, postPage.getTotal());
+
+        // 存入缓存 (只有查询热门帖子时才缓存)
+        if ("hot".equals(sort)) {
+            redisCache.setCacheObject(cacheKey, result, 5, TimeUnit.MINUTES);
         }
 
         return result;
+    }
+
+/**
+     * 分页查询标签
+     * @param page 页码
+     * @param pageSize 每页数量
+     * @return 标签列表
+     */
+    @Override
+    public PageResult<Tag> getTags(Integer page, Integer pageSize) {
+        Page<Tag> tagPage = new Page<>(page, pageSize);
+        LambdaQueryWrapper<Tag> queryWrapper = new LambdaQueryWrapper<>();
+        
+        // 按创建时间倒序
+        queryWrapper.orderByDesc(Tag::getUseCount);
+
+        tagMapper.selectPage(tagPage, queryWrapper);
+        
+        return new PageResult<>(tagPage.getRecords(), tagPage.getTotal());
+    }
+
+    /**
+     * 分页查询评论
+     * 
+     * @param postId   帖子ID
+     * @param page     页码
+     * @param pageSize 每页数量
+     * @return 评论列表
+     */
+    @Override
+    public PageResult<Comment> getComments(Long postId, Integer page, Integer pageSize) {
+        Page<Comment> commentPage = new Page<>(page, pageSize);
+        LambdaQueryWrapper<Comment> queryWrapper = new LambdaQueryWrapper<>();
+
+        queryWrapper.eq(Comment::getPostId, postId)
+                .orderByDesc(Comment::getCreateTime);
+
+        commentMapper.selectPage(commentPage, queryWrapper);
+
+        List<Comment> comments = commentPage.getRecords();
+        if (comments.isEmpty()) {
+            return new PageResult<>(new ArrayList<>(), commentPage.getTotal());
+        }
+
+        // 填充评论者信息
+        Set<Long> userIds = comments.stream().map(Comment::getUserId).collect(Collectors.toSet());
+        Map<Long, User> userMap = userMapper.selectList(new LambdaQueryWrapper<User>().in(User::getUserId, userIds))
+                .stream().collect(Collectors.toMap(User::getUserId, u -> u));
+
+        comments.forEach(c -> {
+            User user = userMap.get(c.getUserId());
+            if (user != null) {
+                c.setUsername(user.getUsername());
+                c.setAvatar(user.getImage());
+            }
+        });
+
+        return new PageResult<>(comments, commentPage.getTotal());
     }
 
     /**
@@ -242,7 +263,37 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
 
         // 转换为VO
         PostVO vo = new PostVO();
-        BeanUtils.copyProperties(post, vo);
+        BeanUtils.copyProperties(post, vo, "images", "tags");
+
+        // 转换图片和标签格式
+        if (post.getImages() != null && !post.getImages().isEmpty()) {
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                List<String> images = objectMapper.readValue(post.getImages(),
+                        new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {
+                        });
+                vo.setImages(images);
+            } catch (JsonProcessingException e) {
+                // 如果解析失败，可能是旧数据或格式错误，视为空列表或不做处理
+                vo.setImages(new ArrayList<>());
+            }
+        } else {
+            vo.setImages(new ArrayList<>());
+        }
+
+        if (post.getTag() != null && !post.getTag().isEmpty()) {
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                List<String> tags = objectMapper.readValue(post.getTag(),
+                        new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {
+                        });
+                vo.setTags(tags);
+            } catch (JsonProcessingException e) {
+                vo.setTags(new ArrayList<>());
+            }
+        } else {
+            vo.setTags(new ArrayList<>());
+        }
 
         // 填充作者信息
         User user = userMapper.selectById(post.getUserId());
@@ -263,12 +314,12 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
         // 查询评论列表
         LambdaQueryWrapper<Comment> commentWrapper = new LambdaQueryWrapper<>();
         commentWrapper.eq(Comment::getPostId, postId)
-                .eq(Comment::getParentId, 0)
+                .eq(Comment::getParentId, 0) // 只查询一级评论？原逻辑是这样的
                 .orderByAsc(Comment::getCreateTime);
-        List<Comment> comments = commentMapper.selectList(commentWrapper);
+        List<Comment> commentsList = commentMapper.selectList(commentWrapper);
 
         // 填充评论用户信息和点赞数
-        for (Comment comment : comments) {
+        for (Comment comment : commentsList) {
             User commentUser = userMapper.selectById(comment.getUserId());
             if (commentUser != null) {
                 comment.setUsername(commentUser.getUsername());
@@ -284,7 +335,7 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             // 初始化点赞状态
             comment.setIsLiked(0);
         }
-        vo.setComments(comments);
+        vo.setComments(commentsList);
 
         // 3. 填充当前用户的交互状态 (点赞、收藏)
         Long currentUserId = SecurityUtils.getUserId();
@@ -345,75 +396,5 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
         }
 
         return vo;
-    }
-
-    /**
-     * 发布帖子
-     * 
-     * @param postDTO 帖子数据
-     */
-    @Override
-    @Transactional
-    public void publish(PostDTO postDTO) {
-        // 1. 校验帖子数据
-        if (postDTO == null || postDTO.getTitle() == null || postDTO.getTitle().isEmpty() ||
-                postDTO.getContent() == null || postDTO.getContent().isEmpty()) {
-            throw new IllegalArgumentException("帖子标题和内容不能为空");
-        }
-
-        // 2. 将 DTO 转换为 Entity
-        Post post = new Post();
-        BeanUtils.copyProperties(postDTO, post);
-
-        // 3. 设置帖子作者为当前登录用户
-        post.setUserId(SecurityUtils.getUserId());
-        post.setCreateTime(LocalDateTime.now());
-        post.setUpdateTime(LocalDateTime.now());
-
-        // 默认为未审核状态 (status=0)
-        // post.setStatus(0);
-
-        post.setIsDeleted(0);
-        post.setLikeCount(0L);
-        post.setCommentCount(0L);
-        post.setViewCount(0L);
-        post.setFavouriteCount(0L);
-
-        // 4. 插入数据库
-        postMapper.insert(post);
-        // 5. 初始化帖子统计信息
-
-        PostState postState = new PostState();
-        postState.setPostId(post.getPostId());
-        postState.setLikeCount(0L);
-        postState.setCommentCount(0L);
-        postState.setViewCount(0L);
-        postState.setFavouriteCount(0L);
-        postState.setLastUpdate(LocalDateTime.now());
-
-        postStateMapper.insert(postState);
-
-    }
-
-
-    /**
-     * 查询用户发布的帖子
-     * @param userId 用户ID
-     * @return 帖子列表
-     */
-    @Override
-    public List<Post> getPosts(Long userId) {
-
-        // 从数据库中查询用户发布的帖子
-        LambdaQueryWrapper<Post> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(Post::getUserId, userId)
-                .orderByDesc(Post::getCreateTime);
-        List<Post> postList = postMapper.selectList(queryWrapper);
-        
-        if (postList.isEmpty()) {
-            return new ArrayList<>();
-        }
-        
-        return postList;
     }
 }

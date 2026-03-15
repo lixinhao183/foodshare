@@ -8,13 +8,19 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 //用户反馈表
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@TableName("feedback")
 public class FeedBack implements Serializable {
 
     //反馈ID
+    @TableId(type = IdType.AUTO)
     private Long feedbackId;
 
     //反馈用户ID

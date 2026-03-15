@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -18,11 +20,11 @@ public class PostDTO implements Serializable {
     //帖子文字内容
     private String content;
 
-    //图片JSON数组
-    private String images;
+    //图片列表
+    private List<String> images;
 
-    //标签JSON数组
-    private String tag;
+    //标签列表
+    private List<String> tags;
 
     //价格
     private Float price;
@@ -30,7 +32,7 @@ public class PostDTO implements Serializable {
     //推荐分数
     private Integer recommendScore;
 
-    //位置分类(0校内1校外2外卖)
+    //位置分类
     private Integer local;
 
     //发布时间

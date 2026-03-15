@@ -1,25 +1,18 @@
-package xinhao.foodshare.pojo.entity;
+package xinhao.foodshare.pojo.vo;
+
+import java.io.Serializable;
+import java.time.LocalDateTime;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.io.Serializable;
-import java.time.LocalDateTime;
-
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-
-//举报记录表
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("report")
-public class Report implements Serializable {
+public class ReportVO implements Serializable {
 
     //举报ID
-    @TableId(type = IdType.AUTO)
     private Long reportId;
 
     //举报人ID
@@ -40,12 +33,12 @@ public class Report implements Serializable {
     //处理状态(0未处理1已处理)
     private Integer isStatus;
 
-    //处理人管理员ID
-    private Long handlerAdminId;
-
     //举报时间
     private LocalDateTime createTime;
 
-    //处理时间
-    private LocalDateTime updateTime;
+    // 被举报对象名称 (帖子标题/用户名/评论内容)
+    private String targetName;
+
+    // 被举报对象图片 (帖子图片/用户头像)
+    private String targetImage;
 }

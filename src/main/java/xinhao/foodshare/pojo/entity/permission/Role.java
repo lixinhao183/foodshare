@@ -1,5 +1,6 @@
 package xinhao.foodshare.pojo.entity.permission;
 
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -15,7 +16,7 @@ import java.io.Serializable;
  * @author makejava
  * @since 2021-11-24 15:30:08
  */
-@TableName(value="menu")
+@TableName(value="role")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -26,7 +27,7 @@ public class Role implements Serializable {
     /**
      * 权限菜单ID
      */
-    @TableId
+    @TableId(type = IdType.AUTO)
     private Long roleId;
     /**
      * 权限菜单名
