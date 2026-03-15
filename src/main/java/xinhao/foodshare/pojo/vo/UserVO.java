@@ -35,7 +35,10 @@ public class UserVO implements Serializable {
      * 邮箱
      */
     private String email;
-
+    /**
+     * 角色（01管理员2登录用户3游客）
+     */
+    private Integer role;
     /**
      * 关注数
      */
