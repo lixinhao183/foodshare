@@ -19,14 +19,11 @@ import com.baomidou.mybatisplus.annotation.TableName;
 public class Follows implements Serializable {
 
     //用户id
-    @TableId
+    @TableId(type = IdType.INPUT)
     private Long userId;
 
     //被关注者id
     private Long followedId;
-
-    //备注名
-    private String remarkName;
 
     //关注时间
     private LocalDateTime createTime;

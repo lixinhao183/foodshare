@@ -23,11 +23,6 @@ public class FollowsVO implements Serializable{
     private String username;
 
     /**
-     * 备注名
-     */
-    private String remarkName;
-
-    /**
      * 头像
      */
     private String image;
@@ -36,4 +31,9 @@ public class FollowsVO implements Serializable{
      * 创建时间
      */
     private LocalDateTime createTime;
+
+    /**
+     * 是否已关注该用户 (0未关注 1已关注)
+     */
+    private Integer isFollowed;
 }

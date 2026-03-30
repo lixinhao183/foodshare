@@ -41,6 +41,7 @@ public class SecurityConfig{
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/user/login").anonymous()
                         .requestMatchers("/user/register").anonymous()
+                        .requestMatchers("/user/guestLogin").anonymous()
                         .anyRequest().permitAll()
                 )
                 .csrf(AbstractHttpConfigurer::disable);

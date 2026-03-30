@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import xinhao.foodshare.pojo.dto.AnnouncementDTO;
 import xinhao.foodshare.pojo.dto.UserRoleUpdateDTO;
+import xinhao.foodshare.pojo.entity.Comment;
 import xinhao.foodshare.pojo.entity.Tag;
 import xinhao.foodshare.pojo.vo.UserRoleInfoVO;
 import xinhao.foodshare.pojo.vo.PostVO;
@@ -22,7 +23,6 @@ import xinhao.foodshare.service.AdminService;
 @RestController
 @Slf4j
 @RequestMapping("/admin")
-@PreAuthorize("hasAuthority('system:dept:list')")
 public class AdminController {
 
     @Autowired
@@ -36,6 +36,7 @@ public class AdminController {
      * @return 用户列表
      */
     @GetMapping("/user/list")
+    @PreAuthorize("hasAuthority('admin:manage')")
     public ResponseResult<PageResult<UserVO>> getUserList(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize,
@@ -52,6 +53,7 @@ public class AdminController {
      * @return 结果
      */
     @PutMapping("/user/status/{userId}/{status}")
+    @PreAuthorize("hasAuthority('admin:manage')")
     public ResponseResult updateUserStatus(@PathVariable Long userId, @PathVariable Integer status) {
         log.info("管理员修改用户状态: userId={}, status={}", userId, status);
         adminService.updateUserStatus(userId, status);
@@ -67,6 +69,7 @@ public class AdminController {
      * @return 帖子列表
      */
     @GetMapping("/post/list")
+    @PreAuthorize("hasAuthority('admin:manage')")
     public ResponseResult<PageResult<PostVO>> getPostList(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize,
@@ -78,16 +81,21 @@ public class AdminController {
     }
 
     /**
-     * 审核帖子
-     * @param postId 帖子ID
-     * @param status 状态（1未通过，2已通过）
-     * @return 结果
+     * 分页查询评论列表
+     * @param page 页码
+     * @param pageSize 每页数量
+     * @param postId 帖子ID（可选）
+     * @return 评论列表
      */
-    @PutMapping("/post/audit/{postId}/{status}")
-    public ResponseResult auditPost(@PathVariable Long postId, @PathVariable Integer status) {
-        log.info("管理员审核帖子: postId={}, status={}", postId, status);
-        adminService.auditPost(postId, status);
-        return ResponseResult.success();
+    @GetMapping("/comment/list")
+    @PreAuthorize("hasAuthority('admin:manage')")
+    public ResponseResult<PageResult<Comment>> getCommentList(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            Long postId) {
+        log.info("管理员查询评论列表: page={}, pageSize={}, postId={}", page, pageSize, postId);
+        PageResult<Comment> commentList = adminService.listComments(page, pageSize, postId);
+        return ResponseResult.success(commentList);
     }
 
     /**
@@ -96,9 +104,37 @@ public class AdminController {
      * @return 结果
      */
     @DeleteMapping("/post/{postId}")
+    @PreAuthorize("hasAuthority('admin:manage')")
     public ResponseResult deletePost(@PathVariable Long postId) {
         log.info("管理员删除帖子: postId={}", postId);
         adminService.deletePost(postId);
+        return ResponseResult.success();
+    }
+    
+    /**
+     * 审核帖子
+     * @param postId 帖子ID
+     * @param status 状态（0待审核，1未通过，2已通过）
+     * @return 结果
+     */
+    @PutMapping("/post/status/{postId}/{status}")
+    @PreAuthorize("hasAuthority('admin:manage')")
+    public ResponseResult updatePostStatus(@PathVariable Long postId, @PathVariable Integer status) {
+        log.info("管理员审核帖子: postId={}, status={}", postId, status);
+        adminService.updatePostStatus(postId, status);
+        return ResponseResult.success();
+    }
+
+    /**
+     * 删除评论
+     * @param commentId 评论ID
+     * @return 结果
+     */
+    @DeleteMapping("/comment/{commentId}")
+    @PreAuthorize("hasAuthority('admin:manage')")
+    public ResponseResult deleteComment(@PathVariable Long commentId) {
+        log.info("管理员删除评论: commentId={}", commentId);
+        adminService.deleteComment(commentId);
         return ResponseResult.success();
     }
 
@@ -108,6 +144,7 @@ public class AdminController {
      * @return 结果
      */
     @PostMapping("/announcement")
+    @PreAuthorize("hasAuthority('admin:manage')")
     public ResponseResult publishAnnouncement(@RequestBody AnnouncementDTO announcementDTO) {
         log.info("管理员发布公告: {}", announcementDTO);
         adminService.publishAnnouncement(announcementDTO);
@@ -120,6 +157,7 @@ public class AdminController {
      * @return 结果
      */
     @DeleteMapping("/announcement/{id}")
+    @PreAuthorize("hasAuthority('admin:manage')")
     public ResponseResult deleteAnnouncement(@PathVariable Integer id) {
         log.info("管理员删除公告: {}", id);
         adminService.deleteAnnouncement(id);
@@ -134,6 +172,7 @@ public class AdminController {
      * @return 举报记录列表
      */
     @GetMapping("/report/list")
+    @PreAuthorize("hasAuthority('admin:manage')")
     public ResponseResult<PageResult<ReportVO>> getReportList(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize,
@@ -150,9 +189,23 @@ public class AdminController {
      * @return 结果
      */
     @PutMapping("/report/{id}")
-    public ResponseResult handleReport(@PathVariable Integer id) {
-        log.info("管理员处理举报记录: id={}", id);
-        adminService.handleReport(id);
+    @PreAuthorize("hasAuthority('admin:manage')")
+    public ResponseResult handleReport(@PathVariable Long id, @RequestParam(required = false) Integer isStatus) {
+        log.info("管理员处理举报记录: id={}, isStatus={}", id, isStatus);
+        adminService.handleReport(id, isStatus);
+        return ResponseResult.success();
+    }
+
+    /**
+     * 删除举报记录
+     * @param id 举报记录ID
+     * @return 结果
+     */
+    @DeleteMapping("/report/{id}")
+    @PreAuthorize("hasAuthority('admin:manage')")
+    public ResponseResult deleteReport(@PathVariable Long id) {
+        log.info("管理员删除举报记录: id={}", id);
+        adminService.deleteReport(id);
         return ResponseResult.success();
     }
 
@@ -162,6 +215,7 @@ public class AdminController {
      * @return 结果
      */
     @PostMapping("/tag")
+    @PreAuthorize("hasAuthority('admin:manage')")
     public ResponseResult addTag(@RequestBody List<Tag> tags) {
         log.info("管理员新增标签: {}", tags);
         adminService.addTag(tags);
@@ -174,6 +228,7 @@ public class AdminController {
      * @return 结果
      */
     @DeleteMapping("/tag/{id}")
+    @PreAuthorize("hasAuthority('admin:manage')")
     public ResponseResult deleteTag(@PathVariable Integer id) {
         log.info("管理员删除标签: {}", id);
         adminService.deleteTag(id);
@@ -186,6 +241,7 @@ public class AdminController {
      * @return 用户角色信息
      */
     @GetMapping("/user/role")
+    @PreAuthorize("hasAuthority('permission:manage')")
     public ResponseResult<UserRoleInfoVO> getUserRoleInfo(@RequestParam Long userId) {
         log.info("管理员查看用户角色: userId={}", userId);
         UserRoleInfoVO vo = adminService.getUserRoleInfo(userId);
@@ -198,6 +254,7 @@ public class AdminController {
      * @return 结果
      */
     @PutMapping("/user/role")
+    @PreAuthorize("hasAuthority('permission:manage')")
     public ResponseResult updateUserRoles(@RequestBody UserRoleUpdateDTO dto) {
         log.info("管理员修改用户角色: userId={}, roleIds={}", dto.getUserId(), dto.getRoleIds());
         adminService.updateUserRoles(dto.getUserId(), dto.getRoleIds());

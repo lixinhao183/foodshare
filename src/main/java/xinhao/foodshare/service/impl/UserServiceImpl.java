@@ -57,6 +57,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -137,10 +138,17 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void addComment(CommentDTO commentDTO) {
-        Long userId = SecurityUtils.getUserId();
-        if (userId == null) {
+        User user = SecurityUtils.getUser();
+        if (user == null) {
             throw new RuntimeException("用户未登录");
         }
+        
+        // 游客不能发表评论 (角色ID为4)
+        if (user.getRole() != null && user.getRole() == 4) {
+            throw new RuntimeException("游客身份暂不支持发表评论，请先登录/注册账号");
+        }
+        
+        Long userId = user.getUserId();
         
         // 1. 插入评论
         Comment comment = new Comment();
@@ -265,20 +273,19 @@ public class UserServiceImpl implements UserService {
 
         // 设置默认值
         user.setUserId(null);
-        user.setRole(2); // 默认为普通用户
+        user.setRole(3); // 默认为普通用户
         user.setStatus(0); // 默认启用
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
 
+        // 插入新用户
+        int result = userMapper.insert(user);
+
         // 插入用户角色
         UserRole userRole = new UserRole();
         userRole.setUserId(user.getUserId());
-        userRole.setRoleId(2L);
+        userRole.setRoleId(3L);
         userRoleMapper.insert(userRole);
-
-
-        // 插入新用户
-        int result = userMapper.insert(user);
 
         if (result > 0) {
             // 注册成功，返回用户信息（不包含密码）
@@ -367,6 +374,16 @@ public class UserServiceImpl implements UserService {
         fansWrapper.eq(Follows::getFollowedId, user.getUserId());
         userVO.setFansCount(followsMapper.selectCount(fansWrapper));
 
+        // 查询当前用户是否关注该用户
+        Long currentUserId = SecurityUtils.getUserId();
+        if (currentUserId != null && !user.getUserId().equals(currentUserId)) {
+            userVO.setIsFollowed(followsMapper.selectCount(new LambdaQueryWrapper<Follows>()
+                    .eq(Follows::getUserId, currentUserId)
+                    .eq(Follows::getFollowedId, user.getUserId())) > 0 ? 1 : 0);
+        } else {
+            userVO.setIsFollowed(0);
+        }
+
         return userVO;
     }
 
@@ -401,17 +418,12 @@ public class UserServiceImpl implements UserService {
         userWrapper.in(User::getUserId, followedIds);
         List<User> userList = userMapper.selectList(userWrapper);
 
-        // 4. 构建Map, Key为被关注者ID, Value为备注名
-        Map<Long, String> remarkMap = records.stream()
-                .collect(Collectors.toMap(Follows::getFollowedId,
-                        follows -> follows.getRemarkName() != null ? follows.getRemarkName() : ""));
-
         // 5. 转换为VO对象
         List<FollowsVO> followsVOList = userList.stream().map(user -> {
             FollowsVO followsVO = new FollowsVO();
             BeanUtils.copyProperties(user, followsVO);
-            // 设置备注名
-            followsVO.setRemarkName(remarkMap.get(user.getUserId()));
+            // 关注列表中的用户显然都是已关注的
+            followsVO.setIsFollowed(1);
             return followsVO;
         }).collect(Collectors.toList());
 
@@ -458,15 +470,25 @@ public class UserServiceImpl implements UserService {
 
         // 5. 转换为VO对象
         // 注意：这里需要保持分页的顺序，所以遍历 records
+        
+        // 批量查询当前用户是否关注了这些粉丝（互粉状态）
+        Set<Long> followedFanIds = new HashSet<>();
+        if (userId != null) {
+            List<Follows> myFollows = followsMapper.selectList(new LambdaQueryWrapper<Follows>()
+                    .eq(Follows::getUserId, userId)
+                    .in(Follows::getFollowedId, fanIds));
+            followedFanIds = myFollows.stream().map(Follows::getFollowedId).collect(Collectors.toSet());
+        }
+        final Set<Long> finalFollowedFanIds = followedFanIds;
+
         List<FollowsVO> fansVOList = records.stream().map(follow -> {
             FollowsVO followsVO = new FollowsVO();
             User user = userMap.get(follow.getUserId());
             if (user != null) {
                 BeanUtils.copyProperties(user, followsVO);
             }
-            // 粉丝列表中通常不显示我对粉丝的备注，或者显示粉丝对我的备注？
-            // 这里暂且不设置备注名，或者复用 FollowsVO 结构
-            // 如果业务需要显示"我是否关注了该粉丝"（互粉状态），需要额外查询
+            // 设置是否已关注（回关状态）
+            followsVO.setIsFollowed(finalFollowedFanIds.contains(follow.getUserId()) ? 1 : 0);
             return followsVO;
         }).collect(Collectors.toList());
 
@@ -481,54 +503,104 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public PageResult<PostVO> viewHistory(Integer page, Integer pageSize) {
-        // 获取当前登录用户ID
         Long userId = SecurityUtils.getUserId();
 
         // 1. 分页查询游览记录表
         Page<ViewHistory> historyPage = new Page<>(page, pageSize);
-        LambdaQueryWrapper<ViewHistory> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(ViewHistory::getUserId, userId)
-                .orderByDesc(ViewHistory::getViewTime);
-        viewHistoryMapper.selectPage(historyPage, queryWrapper);
+        viewHistoryMapper.selectPage(historyPage, new LambdaQueryWrapper<ViewHistory>()
+                .eq(ViewHistory::getUserId, userId)
+                .orderByDesc(ViewHistory::getViewTime));
 
         List<ViewHistory> records = historyPage.getRecords();
         if (records.isEmpty()) {
             return new PageResult<>(new ArrayList<>(), historyPage.getTotal());
         }
 
-        // 2. 提取帖子ID列表
+        // 2. 提取并保留原始顺序的帖子ID列表
         List<Long> postIds = records.stream()
                 .map(ViewHistory::getPostId)
                 .collect(Collectors.toList());
-                // 去重
 
-        // 3. 批量查询帖子信息
+        // 3. 批量查询帖子详细信息（此处内部已去重并填充 VO）
         List<PostVO> postVOList = getPostsByIds(postIds);
 
+        // 4. 处理已删除或未审核通过的帖子（同步清理无效记录）
         Set<Long> existingPostIds = postVOList.stream()
                 .map(PostVO::getPostId)
                 .collect(Collectors.toSet());
 
-        List<Long> deletedPostIds = postIds.stream()
-                .filter(postId -> postId != null && !existingPostIds.contains(postId))
+        List<Long> missingPostIds = postIds.stream()
+                .filter(id -> !existingPostIds.contains(id))
                 .distinct()
                 .collect(Collectors.toList());
 
-        if (!deletedPostIds.isEmpty()) {
-            LambdaQueryWrapper<ViewHistory> deleteWrapper = new LambdaQueryWrapper<>();
-            deleteWrapper.eq(ViewHistory::getUserId, userId)
-                    .in(ViewHistory::getPostId, deletedPostIds);
-            viewHistoryMapper.delete(deleteWrapper);
+        if (!missingPostIds.isEmpty()) {
+            viewHistoryMapper.delete(new LambdaQueryWrapper<ViewHistory>()
+                    .eq(ViewHistory::getUserId, userId)
+                    .in(ViewHistory::getPostId, missingPostIds));
         }
 
+        // 5. 按照游览时间的先后顺序对结果进行重排序（MyBatis Plus 的 IN 查询不保证顺序）
+        Map<Long, PostVO> postMap = postVOList.stream()
+                .collect(Collectors.toMap(PostVO::getPostId, vo -> vo));
+        
+        List<PostVO> sortedResult = postIds.stream()
+                .filter(existingPostIds::contains)
+                .map(postMap::get)
+                .collect(Collectors.toList());
+
+        // 6. 返回分页结果
         long total = historyPage.getTotal();
-        if (!deletedPostIds.isEmpty()) {
+        if (!missingPostIds.isEmpty()) {
             total = viewHistoryMapper.selectCount(new LambdaQueryWrapper<ViewHistory>()
                     .eq(ViewHistory::getUserId, userId));
         }
 
-        // 4. 返回分页结果
-        return new PageResult<>(postVOList, total);
+        return new PageResult<>(sortedResult, total);
+    }
+
+    /**
+     * 清空游览记录
+     */
+    @Override
+    public void clearViewHistory() {
+        Long userId = SecurityUtils.getUserId();
+        if (userId == null) {
+            throw new RuntimeException("用户未登录");
+        }
+        viewHistoryMapper.delete(new LambdaQueryWrapper<ViewHistory>()
+                .eq(ViewHistory::getUserId, userId));
+    }
+
+    /**
+     * 删除单条游览记录
+     * 
+     * @param id 游览记录ID或帖子ID
+     */
+    @Override
+    @Transactional
+    public void deleteViewHistory(Long id) {
+        Long userId = SecurityUtils.getUserId();
+        if (userId == null) {
+            throw new RuntimeException("用户未登录");
+        }
+
+        // 1. 尝试按 viewId (主键) 查询并删除
+        ViewHistory viewHistory = viewHistoryMapper.selectById(id);
+        if (viewHistory != null && viewHistory.getUserId().equals(userId)) {
+            viewHistoryMapper.deleteById(id);
+            return;
+        }
+
+        // 2. 如果按 viewId 没找到，尝试按 postId 删除该用户的记录
+        // (因为前端获取的历史列表是 PostVO，通常只有 postId)
+        int result = viewHistoryMapper.delete(new LambdaQueryWrapper<ViewHistory>()
+                .eq(ViewHistory::getUserId, userId)
+                .eq(ViewHistory::getPostId, id));
+
+        if (result == 0) {
+            throw new RuntimeException("游览记录不存在");
+        }
     }
 
     /**
@@ -580,7 +652,7 @@ public class UserServiceImpl implements UserService {
         // 1. 根据ID列表批量查询帖子信息
         LambdaQueryWrapper<Post> postWrapper = new LambdaQueryWrapper<>();
         postWrapper.in(Post::getPostId, postIds)
-                .eq(Post::getIsDeleted, 0);
+                .eq(Post::getStatus, 2);
         List<Post> postList = postMapper.selectList(postWrapper);
 
         if (postList.isEmpty()) {
@@ -670,9 +742,9 @@ public class UserServiceImpl implements UserService {
         post.setUpdateTime(LocalDateTime.now());
 
         // 设置默认状态为已通过 (为了演示方便，实际项目可设为0待审核)
-        post.setStatus(2);
+        // TODO
+        post.setStatus(0);
 
-        post.setIsDeleted(0);
         post.setLikeCount(0L);
         post.setCommentCount(0L);
         post.setViewCount(0L);
@@ -707,7 +779,6 @@ public class UserServiceImpl implements UserService {
         Page<Post> postPage = new Page<>(page, pageSize);
         LambdaQueryWrapper<Post> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(Post::getUserId, userId)
-                .eq(Post::getIsDeleted, 0) // 仅查询未删除的帖子
                 .orderByDesc(Post::getCreateTime);
         postMapper.selectPage(postPage, queryWrapper);
 
@@ -747,10 +818,12 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("无权删除该帖子");
         }
 
-        // 4. 逻辑删除
-        post.setIsDeleted(1);
-        post.setUpdateTime(LocalDateTime.now());
-        postMapper.updateById(post);
+        // 4. 删除图片
+        postUtils.deletePostImages(post);
+
+        // 5. 物理删除
+        postMapper.deleteById(postId);
+        commentMapper.delete(new LambdaQueryWrapper<Comment>().eq(Comment::getPostId, postId));
     }
 
     /**
@@ -761,9 +834,6 @@ public class UserServiceImpl implements UserService {
     public void likePost(Long postId) {
         // 1. 获取当前登录用户
         Long userId = SecurityUtils.getUserId();
-        if (userId == null) {
-            throw new RuntimeException("用户未登录");
-        }
 
         // 2. 查询帖子
         Post post = postMapper.selectById(postId);
@@ -793,6 +863,7 @@ public class UserServiceImpl implements UserService {
         if (postState == null) {
             throw new RuntimeException("帖子状态不存在");
         }
+        // 8. 更新帖子状态点赞数
         Long postStateLikeCount = postState.getLikeCount();
         postState.setLikeCount((postStateLikeCount == null ? 0L : postStateLikeCount) + 1);
         postState.setLastUpdate(LocalDateTime.now());

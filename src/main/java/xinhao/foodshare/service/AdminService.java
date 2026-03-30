@@ -2,6 +2,7 @@ package xinhao.foodshare.service;
 
 import java.util.List;
 import xinhao.foodshare.pojo.dto.AnnouncementDTO;
+import xinhao.foodshare.pojo.entity.Comment;
 import xinhao.foodshare.pojo.entity.Tag;
 import xinhao.foodshare.pojo.vo.PostVO;
 import xinhao.foodshare.pojo.vo.ReportVO;
@@ -25,7 +26,14 @@ public interface AdminService {
      * @param id 举报记录ID
      * @param isStatus 处理状态 (0未处理, 1已处理)
      */
-    void handleReport(Integer id);
+    void handleReport(Long id, Integer isStatus);
+
+    /**
+     * 删除举报记录
+     * @param id 举报记录ID
+     */
+    void deleteReport(Long id);
+
 
     /**
      * 发布公告
@@ -66,11 +74,27 @@ public interface AdminService {
     PageResult<PostVO> getPostList(Integer page, Integer pageSize, String title, Integer status);
 
     /**
+     * 分页查询评论列表
+     * @param page 页码
+     * @param pageSize 每页数量
+     * @param postId 帖子ID
+     * @return 评论列表
+     */
+    PageResult<Comment> listComments(Integer page, Integer pageSize, Long postId);
+    
+
+     /**
+     * 删除评论
+     * @param commentId 评论ID
+     */
+    void deleteComment(Long commentId);
+
+    /**
      * 审核帖子
      * @param postId 帖子ID
      * @param status 状态（1未通过，2已通过）
      */
-    void auditPost(Long postId, Integer status);
+    void updatePostStatus(Long postId, Integer status);
 
     /**
      * 删除帖子（逻辑删除）
@@ -78,11 +102,29 @@ public interface AdminService {
      */
     void deletePost(Long postId);
 
+    /**
+     * 添加标签
+     * @param tags 标签列表
+     */
     void addTag(List<Tag> tags);
 
+    /**
+     * 删除标签
+     * @param id 标签ID
+     */
     void deleteTag(Integer id);
 
+    /**
+     * 获取用户角色信息
+     * @param userId 用户ID
+     * @return 用户角色信息
+     */
     UserRoleInfoVO getUserRoleInfo(Long userId);
 
+    /**
+     * 更新用户角色
+     * @param userId 用户ID
+     * @param roleIds 角色ID列表
+     */
     void updateUserRoles(Long userId, List<Long> roleIds);
 }

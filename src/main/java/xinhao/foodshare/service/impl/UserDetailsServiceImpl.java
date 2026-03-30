@@ -87,11 +87,6 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             }
         }
 
-        if (user.getRole() != null && user.getRole() <= 1) {
-            list.add("admin:permission:manage");
-            list = list.stream().distinct().collect(Collectors.toList());
-        }
-
         //封装成UserDetails对象返回
         return new LoginUser(user,list);
     }

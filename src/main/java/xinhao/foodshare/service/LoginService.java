@@ -13,6 +13,12 @@ public interface LoginService {
     Map login(User user);
 
     /**
+     * 游客登录
+     * @return 登录结果
+     */
+    Map guestLogin();
+
+    /**
      * 用户注销登录
      * @return 注销结果
      */

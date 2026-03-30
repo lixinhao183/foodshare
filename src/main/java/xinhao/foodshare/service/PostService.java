@@ -43,7 +43,8 @@ public interface PostService {
      * 分页查询标签
      * @param page 页码
      * @param pageSize 每页数量
+     * @param tagName 标签名称（可选，模糊查询）
      * @return 标签列表
      */
-    PageResult<Tag> getTags(Integer page, Integer pageSize);
+    PageResult<Tag> getTags(Integer page, Integer pageSize, String tagName);
 }

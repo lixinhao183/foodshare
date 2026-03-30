@@ -32,8 +32,9 @@ public class PostVO implements Serializable{
     private List<String> tags;
     
     private Float price;
-    private Integer recommendScore;
     private Integer local;
+    // 位置分类名称
+    private String localName;
     
     // 统计数据
     private Long viewCount;
@@ -51,6 +52,9 @@ public class PostVO implements Serializable{
     private Integer isLiked;
     // 是否收藏
     private Integer isFavourite;
+    
+    // 是否关注作者
+    private Integer isFollowed;
     
     // 评论列表
     private List<Comment> comments;

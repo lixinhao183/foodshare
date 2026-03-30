@@ -2,6 +2,7 @@ package xinhao.foodshare.pojo.entity.permission;
 
 import java.io.Serializable;
 
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -25,7 +26,7 @@ public class UserRole implements Serializable {
     /**
      * 用户ID
      */
-    @TableId
+    @TableId(type = IdType.INPUT)
     private Long userId;
     /**
      * 角色ID

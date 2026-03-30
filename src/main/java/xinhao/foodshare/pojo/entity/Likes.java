@@ -18,7 +18,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 public class Likes implements Serializable {
 
     //用户ID
-    @TableId
+    @TableId(type = IdType.INPUT)
     private Long userId;              // 点赞用户ID
 
     // 点赞ID

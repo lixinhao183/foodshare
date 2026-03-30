@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import xinhao.foodshare.cache.RedisCache;
 import xinhao.foodshare.mapper.CommentMapper;
 import xinhao.foodshare.mapper.FavouriteMapper;
+import xinhao.foodshare.mapper.FollowsMapper;
 import xinhao.foodshare.mapper.LikesMapper;
 import xinhao.foodshare.mapper.PostMapper;
 import xinhao.foodshare.mapper.PostStateMapper;
@@ -22,6 +23,7 @@ import xinhao.foodshare.mapper.UserMapper;
 import xinhao.foodshare.mapper.ViewHistoryMapper;
 import xinhao.foodshare.pojo.entity.Comment;
 import xinhao.foodshare.pojo.entity.Favourite;
+import xinhao.foodshare.pojo.entity.Follows;
 import xinhao.foodshare.pojo.entity.Likes;
 import xinhao.foodshare.pojo.entity.Post;
 import xinhao.foodshare.pojo.entity.PostState;
@@ -63,6 +65,9 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     private FavouriteMapper favouriteMapper;
 
     @Autowired
+    private FollowsMapper followsMapper;
+
+    @Autowired
     private RedisCache redisCache;
 
     @Autowired
@@ -79,6 +84,9 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
 
     @Autowired
     private TagMapper tagMapper;
+
+    @Autowired
+    private xinhao.foodshare.mapper.LocalMapper localMapper;
 
     /**
      * 分页查询帖子列表
@@ -114,9 +122,8 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
         // 2. 基础分页查询
         Page<Post> postPage = new Page<>(page, pageSize);
         LambdaQueryWrapper<Post> queryWrapper = new LambdaQueryWrapper<>();
-        // 过滤条件：只能看到审核通过(status=2) 且 未被删除(isDeleted=0) 的帖子
-        queryWrapper.eq(Post::getStatus, 2)
-                .eq(Post::getIsDeleted, 0);
+        // 过滤条件：只能看到审核通过(status=2)
+        queryWrapper.eq(Post::getStatus, 2);
 
         // 如果有位置参数，添加位置过滤条件
         if (local != null && !local.isEmpty()) {
@@ -181,14 +188,20 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
      * 分页查询标签
      * @param page 页码
      * @param pageSize 每页数量
+     * @param tagName 标签名称（可选，模糊查询）
      * @return 标签列表
      */
     @Override
-    public PageResult<Tag> getTags(Integer page, Integer pageSize) {
+    public PageResult<Tag> getTags(Integer page, Integer pageSize, String tagName) {
         Page<Tag> tagPage = new Page<>(page, pageSize);
         LambdaQueryWrapper<Tag> queryWrapper = new LambdaQueryWrapper<>();
         
-        // 按创建时间倒序
+        // 如果有标签名称，添加模糊查询条件
+        if (tagName != null && !tagName.isEmpty()) {
+            queryWrapper.like(Tag::getTagName, tagName);
+        }
+
+        // 按使用次数倒序
         queryWrapper.orderByDesc(Tag::getUseCount);
 
         tagMapper.selectPage(tagPage, queryWrapper);
@@ -219,46 +232,62 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             return new PageResult<>(new ArrayList<>(), commentPage.getTotal());
         }
 
-        // 填充评论者信息
+        // 1. 批量填充评论者信息
         Set<Long> userIds = comments.stream().map(Comment::getUserId).collect(Collectors.toSet());
         Map<Long, User> userMap = userMapper.selectList(new LambdaQueryWrapper<User>().in(User::getUserId, userIds))
                 .stream().collect(Collectors.toMap(User::getUserId, u -> u));
 
-        comments.forEach(c -> {
+        // 2. 获取当前用户ID用于判断点赞状态
+        Long currentUserId = SecurityUtils.getUserId();
+        Set<Long> likedCommentIds = new java.util.HashSet<>();
+        if (currentUserId != null) {
+            Set<Long> commentIds = comments.stream().map(Comment::getCommentId).collect(Collectors.toSet());
+            likedCommentIds = likesMapper.selectList(new LambdaQueryWrapper<Likes>()
+                    .eq(Likes::getUserId, currentUserId)
+                    .eq(Likes::getTargetType, 1)
+                    .in(Likes::getTargetId, commentIds))
+                    .stream().map(Likes::getTargetId).collect(Collectors.toSet());
+        }
+
+        // 3. 填充详细信息
+        for (Comment c : comments) {
+            // 填充用户信息
             User user = userMap.get(c.getUserId());
             if (user != null) {
                 c.setUsername(user.getUsername());
                 c.setAvatar(user.getImage());
             }
-        });
+
+            // 查询评论点赞数 (此处沿用原逻辑，若后续需优化建议使用聚合查询)
+            LambdaQueryWrapper<Likes> likeCountWrapper = new LambdaQueryWrapper<>();
+            likeCountWrapper.eq(Likes::getTargetType, 1)
+                    .eq(Likes::getTargetId, c.getCommentId());
+            c.setLikeCount(likesMapper.selectCount(likeCountWrapper));
+
+            // 填充点赞状态
+            c.setIsLiked(likedCommentIds.contains(c.getCommentId()) ? 1 : 0);
+        }
 
         return new PageResult<>(comments, commentPage.getTotal());
     }
 
-    /**
-     * 查询帖子详情
-     * 
-     * @param postId 帖子ID
-     * @return 帖子详情数据
-     */
     @Override
     public PostVO detail(Long postId) {
 
-        // 将帖子游览次数加1 (PostState表)
-        LambdaUpdateWrapper<PostState> updateWrapper = new LambdaUpdateWrapper<>();
-        updateWrapper.setSql("view_count = view_count + 1")
-                .eq(PostState::getPostId, postId);
-        postStateMapper.update(null, updateWrapper);
+        // 1. 异步更新或优化全局游览次数增加逻辑 (PostState表 & Post表)
+        // 注意：如果 PostState 记录不存在，UpdateWrapper 将不会执行任何操作。
+        // 这里可以考虑增加不存在则插入的逻辑，或者在发布帖子时初始化 PostState。
+        postStateMapper.update(null, new LambdaUpdateWrapper<PostState>()
+                .setSql("view_count = view_count + 1")
+                .eq(PostState::getPostId, postId));
 
-        // 将帖子游览次数加1 (Post表)
-        LambdaUpdateWrapper<Post> postUpdateWrapper = new LambdaUpdateWrapper<>();
-        postUpdateWrapper.setSql("view_count = view_count + 1")
-                .eq(Post::getPostId, postId);
-        postMapper.update(null, postUpdateWrapper);
+        postMapper.update(null, new LambdaUpdateWrapper<Post>()
+                .setSql("view_count = view_count + 1")
+                .eq(Post::getPostId, postId));
 
         Post post = this.getById(postId);
-        if (post == null || post.getIsDeleted() == 1 || post.getStatus() != 2) {
-            throw new RuntimeException("帖子不存在或已被删除");
+        if (post == null) {
+            return null; // 或者抛出异常
         }
 
         // 转换为VO
@@ -274,7 +303,6 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
                         });
                 vo.setImages(images);
             } catch (JsonProcessingException e) {
-                // 如果解析失败，可能是旧数据或格式错误，视为空列表或不做处理
                 vo.setImages(new ArrayList<>());
             }
         } else {
@@ -302,6 +330,14 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             vo.setAvatar(user.getImage());
         }
 
+        // 填充位置名称
+        if (post.getLocal() != null) {
+            xinhao.foodshare.pojo.entity.Local localEntity = localMapper.selectById(post.getLocal());
+            if (localEntity != null) {
+                vo.setLocalName(localEntity.getLocalName());
+            }
+        }
+
         // 填充统计数据
         PostState state = postStateMapper.selectById(postId);
         if (state != null) {
@@ -311,76 +347,40 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             vo.setFavouriteCount(state.getFavouriteCount());
         }
 
-        // 查询评论列表
-        LambdaQueryWrapper<Comment> commentWrapper = new LambdaQueryWrapper<>();
-        commentWrapper.eq(Comment::getPostId, postId)
-                .eq(Comment::getParentId, 0) // 只查询一级评论？原逻辑是这样的
-                .orderByAsc(Comment::getCreateTime);
-        List<Comment> commentsList = commentMapper.selectList(commentWrapper);
-
-        // 填充评论用户信息和点赞数
-        for (Comment comment : commentsList) {
-            User commentUser = userMapper.selectById(comment.getUserId());
-            if (commentUser != null) {
-                comment.setUsername(commentUser.getUsername());
-                comment.setAvatar(commentUser.getImage());
-            }
-
-            // 查询评论点赞数
-            LambdaQueryWrapper<Likes> likeCountWrapper = new LambdaQueryWrapper<>();
-            likeCountWrapper.eq(Likes::getTargetType, 1)
-                    .eq(Likes::getTargetId, comment.getCommentId());
-            comment.setLikeCount(likesMapper.selectCount(likeCountWrapper));
-
-            // 初始化点赞状态
-            comment.setIsLiked(0);
-        }
-        vo.setComments(commentsList);
-
-        // 3. 填充当前用户的交互状态 (点赞、收藏)
+        // 3. 填充当前用户的交互状态 (点赞、收藏、游览历史)
         Long currentUserId = SecurityUtils.getUserId();
         if (currentUserId != null) {
             // 查询帖子是否点赞
-            LambdaQueryWrapper<Likes> likeWrapper = new LambdaQueryWrapper<>();
-            likeWrapper.eq(Likes::getUserId, currentUserId)
+            vo.setIsLiked(likesMapper.selectCount(new LambdaQueryWrapper<Likes>()
+                    .eq(Likes::getUserId, currentUserId)
                     .eq(Likes::getTargetType, 0)
-                    .eq(Likes::getTargetId, postId);
-            vo.setIsLiked(likesMapper.selectCount(likeWrapper) > 0 ? 1 : 0);
+                    .eq(Likes::getTargetId, postId)) > 0 ? 1 : 0);
 
             // 查询帖子是否收藏
-            LambdaQueryWrapper<Favourite> favouriteWrapper = new LambdaQueryWrapper<>();
-            favouriteWrapper.eq(Favourite::getUserId, currentUserId)
-                    .eq(Favourite::getPostId, postId);
-            vo.setIsFavourite(favouriteMapper.selectCount(favouriteWrapper) > 0 ? 1 : 0);
+            vo.setIsFavourite(favouriteMapper.selectCount(new LambdaQueryWrapper<Favourite>()
+                    .eq(Favourite::getUserId, currentUserId)
+                    .eq(Favourite::getPostId, postId)) > 0 ? 1 : 0);
 
-            // 查询帖子的评论是否点赞
-            if (vo.getComments() != null) {
-                for (Comment comment : vo.getComments()) {
-                    LambdaQueryWrapper<Likes> isLikedWrapper = new LambdaQueryWrapper<>();
-                    isLikedWrapper.eq(Likes::getUserId, currentUserId)
-                            .eq(Likes::getTargetType, 1)
-                            .eq(Likes::getTargetId, comment.getCommentId());
-                    comment.setIsLiked(likesMapper.selectCount(isLikedWrapper) > 0 ? 1 : 0);
-                }
-            }
+            // 查询是否关注作者
+            vo.setIsFollowed(followsMapper.selectCount(new LambdaQueryWrapper<Follows>()
+                    .eq(Follows::getUserId, currentUserId)
+                    .eq(Follows::getFollowedId, post.getUserId())) > 0 ? 1 : 0);
 
-            // 保存或更新游览记录
-            LambdaQueryWrapper<ViewHistory> viewHistoryWrapper = new LambdaQueryWrapper<>();
-            viewHistoryWrapper.eq(ViewHistory::getUserId, currentUserId)
-                    .eq(ViewHistory::getPostId, postId);
+            // 保存或更新游览历史记录
+            ViewHistory viewHistory = new ViewHistory();
+            viewHistory.setUserId(currentUserId);
+            viewHistory.setPostId(postId);
+            viewHistory.setViewTime(LocalDateTime.now());
 
-            ViewHistory existingHistory = viewHistoryMapper.selectOne(viewHistoryWrapper);
+            // 检查是否存在历史记录
+            ViewHistory existing = viewHistoryMapper.selectOne(new LambdaQueryWrapper<ViewHistory>()
+                    .eq(ViewHistory::getUserId, currentUserId)
+                    .eq(ViewHistory::getPostId, postId));
 
-            if (existingHistory != null) {
-                // 如果记录已存在，更新游览时间
-                existingHistory.setViewTime(LocalDateTime.now());
-                viewHistoryMapper.updateById(existingHistory);
+            if (existing != null) {
+                viewHistory.setViewId(existing.getViewId());
+                viewHistoryMapper.updateById(viewHistory);
             } else {
-                // 如果记录不存在，插入新记录
-                ViewHistory viewHistory = new ViewHistory();
-                viewHistory.setUserId(currentUserId);
-                viewHistory.setPostId(postId);
-                viewHistory.setViewTime(LocalDateTime.now());
                 viewHistoryMapper.insert(viewHistory);
             }
 
@@ -388,11 +388,6 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             // 游客状态
             vo.setIsLiked(0);
             vo.setIsFavourite(0);
-            if (vo.getComments() != null) {
-                for (Comment comment : vo.getComments()) {
-                    comment.setIsLiked(0);
-                }
-            }
         }
 
         return vo;

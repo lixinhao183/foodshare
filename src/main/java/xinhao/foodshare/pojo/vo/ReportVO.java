@@ -24,11 +24,11 @@ public class ReportVO implements Serializable {
     //被举报对象类型(0帖子1用户2评论)
     private Integer targetType;
 
+    //举报人用户名
+    private String reporterUsername;
+
     //举报原因
     private String reasonText;
-
-    //举报证据(图片或说明)
-    private String evidence;
 
     //处理状态(0未处理1已处理)
     private Integer isStatus;
@@ -41,4 +41,12 @@ public class ReportVO implements Serializable {
 
     // 被举报对象图片 (帖子图片/用户头像)
     private String targetImage;
+
+    // 帖子ID (举报对象为评论时使用)
+    private Long postId;
+
+    /**
+     * 被举报对象状态 (如果是用户, 返回用户状态 0启用 1禁用; 如果是帖子, 返回帖子状态 0未审核 1未通过 2已通过)
+     */
+    private Integer targetStatus;
 }

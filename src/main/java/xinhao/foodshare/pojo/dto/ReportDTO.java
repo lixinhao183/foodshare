@@ -18,9 +18,4 @@ public class ReportDTO {
      * 举报原因
      */
     private String reasonText;
-
-    /**
-     * 举报证据(图片或说明)
-     */
-    private String evidence;
 }

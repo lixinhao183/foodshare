@@ -82,14 +82,16 @@ public class PostController{
      * 
      * @param page     页码
      * @param pageSize 每页数量
+     * @param tagName  标签名称（可选，模糊查询）
      * @return 标签列表
      */
     @GetMapping("/tag")
     public ResponseResult<PageResult<Tag>> getTags(
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer pageSize) {
-        log.info("用户查询标签: page={}, pageSize={}", page, pageSize);
-        PageResult<Tag> tagList = postService.getTags(page, pageSize);
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) String tagName) {
+        log.info("用户查询标签: page={}, pageSize={}, tagName={}", page, pageSize, tagName);
+        PageResult<Tag> tagList = postService.getTags(page, pageSize, tagName);
         return ResponseResult.success(tagList);
     }
 

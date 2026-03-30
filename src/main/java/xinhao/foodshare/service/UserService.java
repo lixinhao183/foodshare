@@ -59,6 +59,17 @@ public interface UserService {
     PageResult<PostVO> viewHistory(Integer page, Integer pageSize);
 
     /**
+     * 清空游览记录
+     */
+    void clearViewHistory();
+
+    /**
+     * 删除单条游览记录
+     * @param viewId 游览记录ID
+     */
+    void deleteViewHistory(Long viewId);
+
+    /**
      * 分页查询收藏帖子
      * @param page 页码
      * @param pageSize 每页数量

@@ -2,7 +2,6 @@ package xinhao.foodshare.controller;
 
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +19,6 @@ import xinhao.foodshare.pojo.dto.PostDTO;
 import xinhao.foodshare.pojo.dto.ReportDTO;
 import xinhao.foodshare.pojo.dto.UserRegisterDTO;
 import xinhao.foodshare.pojo.dto.UserUpdateDTO;
-import xinhao.foodshare.pojo.entity.Post;
 import xinhao.foodshare.pojo.entity.User;
 import xinhao.foodshare.pojo.dto.CommentDTO;
 import xinhao.foodshare.pojo.vo.AnnouncementVO;
@@ -38,7 +36,6 @@ import xinhao.foodshare.service.UserService;
 @RestController
 @Slf4j
 @RequestMapping("/user")
-@PreAuthorize("hasAuthority('system:user:list')")
 public class UserController {
 
     @Autowired
@@ -62,11 +59,25 @@ public class UserController {
     }
 
     /**
+     * 游客登录
+     * 
+     * @return 游客登录结果
+     */
+    @PostMapping("/guestLogin")
+    @PreAuthorize("isAnonymous()")
+    public ResponseResult guestLogin() {
+        log.info("游客登录");
+        Map map = loginService.guestLogin();
+        return ResponseResult.success(map);
+    }
+
+    /**
      * 用户退出登录
      * 
      * @return 退出登录结果
      */
     @GetMapping("/logout")
+    @PreAuthorize("isAuthenticated()")
     public ResponseResult logout() {
         log.info("用户退出登录");
         loginService.logout();
@@ -94,6 +105,7 @@ public class UserController {
      * @return 更新结果
      */
     @PutMapping("/update")
+    @PreAuthorize("hasAuthority('user:view')")
     public ResponseResult update(@RequestBody UserUpdateDTO userUpdateDTO) {
         log.info("用户更新:{}", userUpdateDTO);
         userService.update(userUpdateDTO);
@@ -107,6 +119,7 @@ public class UserController {
      * @return 用户个人信息
      */
     @GetMapping("/info")
+    @PreAuthorize("hasAuthority('user:view')")
     public ResponseResult<UserVO> info(@RequestParam(required = false) Long userId) {
         log.info("用户获取个人信息: userId={}", userId);
         UserVO userVO = userService.info(userId);
@@ -121,6 +134,7 @@ public class UserController {
      * @return 关注用户列表
      */
     @GetMapping("/follows")
+    @PreAuthorize("hasAuthority('user:view')")
     public ResponseResult<PageResult<FollowsVO>> follow(@RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
         log.info("用户查询关注用户");
@@ -136,6 +150,7 @@ public class UserController {
      * @return 粉丝用户列表
      */
     @GetMapping("/fans")
+    @PreAuthorize("hasAuthority('user:view')")
     public ResponseResult<PageResult<FollowsVO>> fans(@RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
         log.info("用户查询粉丝用户");
@@ -151,11 +166,39 @@ public class UserController {
      * @return 游览记录列表
      */
     @GetMapping("/viewhistory")
+    @PreAuthorize("hasAuthority('user:view')")
     public ResponseResult<PageResult<PostVO>> viewHistory(@RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
         log.info("用户查询游览记录");
         PageResult<PostVO> viewHistoryList = userService.viewHistory(page, pageSize);
         return ResponseResult.success(viewHistoryList);
+    }
+
+    /**
+     * 清空游览记录
+     * 
+     * @return 结果
+     */
+    @DeleteMapping("/viewhistory")
+    @PreAuthorize("hasAuthority('user:view')")
+    public ResponseResult clearViewHistory() {
+        log.info("用户清空游览记录");
+        userService.clearViewHistory();
+        return ResponseResult.success();
+    }
+
+    /**
+     * 删除单条游览记录
+     * 
+     * @param id 游览记录ID
+     * @return 结果
+     */
+    @DeleteMapping("/viewhistory/{id}")
+    @PreAuthorize("hasAuthority('user:view')")
+    public ResponseResult deleteViewHistory(@PathVariable Long id) {
+        log.info("用户删除单条游览记录: id={}", id);
+        userService.deleteViewHistory(id);
+        return ResponseResult.success();
     }
 
     /**
@@ -166,6 +209,7 @@ public class UserController {
      * @return 收藏帖子列表
      */
     @GetMapping("/favourite")
+    @PreAuthorize("hasAuthority('user:view')")
     public ResponseResult<PageResult<PostVO>> favourite(@RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
         log.info("用户查询收藏帖子");
@@ -180,6 +224,7 @@ public class UserController {
      * @return 发布结果
      */
     @PostMapping("/post/publish")
+    @PreAuthorize("hasAuthority('post:create')")
     public ResponseResult<Long> publish(@RequestBody PostDTO postDTO) {
         log.info("用户发布帖子");
         Long postId = userService.publish(postDTO);
@@ -195,6 +240,7 @@ public class UserController {
      * @return 帖子列表
      */
     @GetMapping("/post")
+    @PreAuthorize("hasAuthority('user:view')")
     public ResponseResult<PageResult<PostVO>> posts(@RequestParam Long userId,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
@@ -210,6 +256,7 @@ public class UserController {
      * @return 结果
      */
     @DeleteMapping("/post/{postId}")
+    @PreAuthorize("hasAuthority('user:view')")
     public ResponseResult deletePost(@PathVariable Long postId) {
         log.info("用户删除帖子: {}", postId);
         userService.delete(postId);

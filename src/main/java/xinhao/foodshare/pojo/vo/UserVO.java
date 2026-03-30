@@ -50,6 +50,11 @@ public class UserVO implements Serializable {
     private Long fansCount;
 
     /**
+     * 是否关注 (1已关注0未关注)
+     */
+    private Integer isFollowed;
+
+    /**
      * 用户状态(0正常1禁用)
      */
     private Integer status;

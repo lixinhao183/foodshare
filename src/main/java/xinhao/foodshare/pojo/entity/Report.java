@@ -8,6 +8,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -34,18 +35,13 @@ public class Report implements Serializable {
     //举报原因
     private String reasonText;
 
-    //举报证据(图片或说明)
-    private String evidence;
-
     //处理状态(0未处理1已处理)
     private Integer isStatus;
-
-    //处理人管理员ID
-    private Long handlerAdminId;
 
     //举报时间
     private LocalDateTime createTime;
 
     //处理时间
+    @TableField(exist = false)
     private LocalDateTime updateTime;
 }

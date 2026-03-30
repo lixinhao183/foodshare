@@ -12,14 +12,25 @@ public class SecurityUtils {
      * 获取用户
      **/
     public static LoginUser getLoginUser() {
-        return (LoginUser) getAuthentication().getPrincipal();
+        Authentication authentication = getAuthentication();
+        if (authentication == null || authentication.getPrincipal() == null || "anonymousUser".equals(authentication.getPrincipal())) {
+            throw new RuntimeException("用户未登录");
+        }
+        
+        Object principal = authentication.getPrincipal();
+        if (!(principal instanceof LoginUser)) {
+            throw new RuntimeException("用户未登录");
+        }
+        
+        return (LoginUser) principal;
     }
     
     /**
      * 获取用户实体类
      */
     public static User getUser() {
-        return (User) getLoginUser().getUser();
+        LoginUser loginUser = getLoginUser();
+        return loginUser.getUser();
     }
 
 

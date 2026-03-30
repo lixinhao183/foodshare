@@ -37,8 +37,11 @@ import xinhao.foodshare.utils.SecurityUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -83,6 +86,10 @@ public class AdminServiceImpl implements AdminService {
      */
     @Override
     public PageResult<ReportVO> getReportList(Integer page, Integer pageSize, Integer isStatus) {
+        if (isStatus != null && isStatus != 0 && isStatus != 1) {
+            throw new RuntimeException("处理状态参数错误");
+        }
+
         Page<Report> reportPage = new Page<>(page, pageSize);
         LambdaQueryWrapper<Report> queryWrapper = new LambdaQueryWrapper<>();
         
@@ -92,38 +99,102 @@ public class AdminServiceImpl implements AdminService {
         queryWrapper.orderByDesc(Report::getCreateTime);
         
         reportMapper.selectPage(reportPage, queryWrapper);
-        
-        List<ReportVO> reportVOList = reportPage.getRecords().stream().map(report -> {
+
+        List<Report> records = reportPage.getRecords();
+        if (records.isEmpty()) {
+            return new PageResult<>(new ArrayList<>(), reportPage.getTotal());
+        }
+
+        Map<Long, Post> postMapTemp = new HashMap<>();
+        Map<Long, User> userMapTemp = new HashMap<>();
+        Map<Long, Comment> commentMapTemp = new HashMap<>();
+
+        Set<Long> postIds = records.stream()
+                .filter(report -> report.getTargetType() != null && report.getTargetType() == 0)
+                .map(Report::getTargetId)
+                .collect(Collectors.toSet());
+        if (!postIds.isEmpty()) {
+            LambdaQueryWrapper<Post> postWrapper = new LambdaQueryWrapper<>();
+            postWrapper.in(Post::getPostId, postIds);
+            postMapTemp = postMapper.selectList(postWrapper).stream()
+                    .collect(Collectors.toMap(Post::getPostId, post -> post));
+        }
+
+        Set<Long> userIds = records.stream()
+                .filter(report -> report.getTargetType() != null && report.getTargetType() == 1)
+                .map(Report::getTargetId)
+                .collect(Collectors.toSet());
+        if (!userIds.isEmpty()) {
+            LambdaQueryWrapper<User> userWrapper = new LambdaQueryWrapper<>();
+            userWrapper.in(User::getUserId, userIds);
+            userMapTemp = userMapper.selectList(userWrapper).stream()
+                    .collect(Collectors.toMap(User::getUserId, user -> user));
+        }
+
+        Set<Long> commentIds = records.stream()
+                .filter(report -> report.getTargetType() != null && report.getTargetType() == 2)
+                .map(Report::getTargetId)
+                .collect(Collectors.toSet());
+        if (!commentIds.isEmpty()) {
+            LambdaQueryWrapper<Comment> commentWrapper = new LambdaQueryWrapper<>();
+            commentWrapper.in(Comment::getCommentId, commentIds);
+            commentMapTemp = commentMapper.selectList(commentWrapper).stream()
+                    .collect(Collectors.toMap(Comment::getCommentId, comment -> comment));
+        }
+
+        final Map<Long, Post> postMap = postMapTemp;
+        final Map<Long, User> userMap = userMapTemp;
+        final Map<Long, Comment> commentMap = commentMapTemp;
+
+        // 批量查询举报人信息
+        Set<Long> reporterIds = records.stream().map(Report::getReporterId).collect(Collectors.toSet());
+        Map<Long, User> reporterMap = new HashMap<>();
+        if (!reporterIds.isEmpty()) {
+            reporterMap = userMapper.selectList(new LambdaQueryWrapper<User>().in(User::getUserId, reporterIds))
+                    .stream()
+                    .collect(Collectors.toMap(User::getUserId, user -> user));
+        }
+        final Map<Long, User> finalReporterMap = reporterMap;
+
+        List<ReportVO> reportVOList = records.stream().map(report -> {
             ReportVO vo = new ReportVO();
             BeanUtils.copyProperties(report, vo);
             
+            // 填充举报人姓名
+            User reporter = finalReporterMap.get(report.getReporterId());
+            if (reporter != null) {
+                vo.setReporterUsername(reporter.getUsername());
+            }
+
+            if (report.getTargetType() == null) {
+                vo.setTargetName("未知举报对象");
+                return vo;
+            }
+
             // 填充被举报对象信息
             if (report.getTargetType() == 0) { // 帖子
-                Post post = postMapper.selectById(report.getTargetId());
+                Post post = postMap.get(report.getTargetId());
                 if (post != null) {
                     vo.setTargetName(post.getTitle());
-                    // 如果帖子有图片，取第一张作为展示
-                    if (post.getImages() != null && !post.getImages().isEmpty()) {
-                        // 这里简单处理，假设 images 存储的是 JSON 数组字符串或逗号分隔的 URL
-                        // 根据实际存储格式调整，这里假设是 JSON 数组字符串，需要解析，或者前端处理
-                        // 为简单起见，这里直接返回原始字符串，或者不做处理，由前端展示
-                        vo.setTargetImage(post.getImages());
-                    }
+                    vo.setTargetImage(postUtils.getFirstImage(post.getImages()));
+                    vo.setTargetStatus(post.getStatus());
                 } else {
                     vo.setTargetName("帖子已删除或不存在");
                 }
             } else if (report.getTargetType() == 1) { // 用户
-                User user = userMapper.selectById(report.getTargetId());
+                User user = userMap.get(report.getTargetId());
                 if (user != null) {
                     vo.setTargetName(user.getUsername());
                     vo.setTargetImage(user.getImage());
+                    vo.setTargetStatus(user.getStatus());
                 } else {
                     vo.setTargetName("用户已注销或不存在");
                 }
             } else if (report.getTargetType() == 2) { // 评论
-                Comment comment = commentMapper.selectById(report.getTargetId());
+                Comment comment = commentMap.get(report.getTargetId());
                 if (comment != null) {
                      vo.setTargetName(comment.getContent());
+                     vo.setPostId(comment.getPostId());
                      // 评论通常没有封面图，可以不设置或设置默认图
                 } else {
                     vo.setTargetName("评论已删除或不存在");
@@ -142,14 +213,63 @@ public class AdminServiceImpl implements AdminService {
      * @param isStatus 处理状态 (0未处理, 1已处理)
      */
     @Override
-    public void handleReport(Integer id) {
+    @Transactional
+    public void handleReport(Long id, Integer isStatus) {
+        if (isStatus != null && isStatus != 0 && isStatus != 1) {
+            throw new RuntimeException("处理状态参数错误");
+        }
+
         Report report = reportMapper.selectById(id);
         if (report == null) {
             throw new RuntimeException("举报记录不存在");
         }
-        report.setIsStatus(report.getIsStatus() == 0 ? 1 : 0);
+
+        int targetStatus = isStatus == null
+                ? (report.getIsStatus() != null && report.getIsStatus() == 0 ? 1 : 0)
+                : isStatus;
+
+        syncReportedTargetStatus(report, targetStatus);
+        report.setIsStatus(targetStatus);
         report.setUpdateTime(LocalDateTime.now());
         reportMapper.updateById(report);
+    }
+
+    /**
+     * 删除举报记录
+     * @param id 举报记录ID
+     */
+    @Override
+    public void deleteReport(Long id) {
+        reportMapper.deleteById(id);
+    }
+
+    /**
+     * 同步被举报对象状态
+     * @param report 举报记录
+     * @param targetStatus 目标状态 (0待审核, 1未通过, 2已通过)
+     */
+    @Transactional
+    private void syncReportedTargetStatus(Report report, int targetStatus) {
+        if (report.getTargetType() == null || report.getTargetId() == null) {
+            return;
+        }
+        if (report.getTargetType() == 1) {
+            User user = userMapper.selectById(report.getTargetId());
+            if (user != null) {
+                user.setStatus(targetStatus);
+                user.setUpdateTime(LocalDateTime.now());
+                userMapper.updateById(user);
+            }
+            return;
+        }
+        if (report.getTargetType() == 0) {
+            Post post = postMapper.selectById(report.getTargetId());
+            if (post != null) {
+                post.setStatus(targetStatus == 1 ? 1 : 2);
+                post.setUpdateTime(LocalDateTime.now());
+                postMapper.updateById(post);
+            }
+        }
     }
 
     /**
@@ -243,8 +363,6 @@ public class AdminServiceImpl implements AdminService {
         Page<Post> postPage = new Page<>(page, pageSize);
         LambdaQueryWrapper<Post> queryWrapper = new LambdaQueryWrapper<>();
 
-        queryWrapper.eq(Post::getIsDeleted, 0); // 默认只查未删除的
-
         if (title != null && !title.isEmpty()) {
             queryWrapper.like(Post::getTitle, title);
         }
@@ -267,13 +385,68 @@ public class AdminServiceImpl implements AdminService {
         return new PageResult<>(vos, postPage.getTotal());
     }
 
+
+    /**
+     * 分页查询评论列表
+     * @param page 页码
+     * @param pageSize 每页数量
+     * @param postId 帖子ID
+     * @return 评论列表
+     */
+    @Override
+    public PageResult<Comment> listComments(Integer page, Integer pageSize, Long postId) {
+        Page<Comment> commentPage = new Page<>(page, pageSize);
+        LambdaQueryWrapper<Comment> queryWrapper = new LambdaQueryWrapper<>();
+        
+        if (postId != null) {
+            queryWrapper.eq(Comment::getPostId, postId);
+        }
+        
+        queryWrapper.orderByDesc(Comment::getCreateTime);
+        commentMapper.selectPage(commentPage, queryWrapper);
+
+        List<Comment> records = commentPage.getRecords();
+        if (records.isEmpty()) {
+            return new PageResult<>(new ArrayList<>(), commentPage.getTotal());
+        }
+
+        // 填充用户信息
+        Set<Long> userIds = records.stream().map(Comment::getUserId).collect(Collectors.toSet());
+        if (!userIds.isEmpty()) {
+            Map<Long, User> userMap = userMapper.selectList(new LambdaQueryWrapper<User>().in(User::getUserId, userIds))
+                    .stream().collect(Collectors.toMap(User::getUserId, u -> u));
+            records.forEach(c -> {
+                User user = userMap.get(c.getUserId());
+                if (user != null) {
+                    c.setUsername(user.getUsername());
+                    c.setAvatar(user.getImage());
+                }
+            });
+        }
+
+        return new PageResult<>(records, commentPage.getTotal());
+    }
+    
+     /**
+     * 删除评论
+     * @param commentId 评论ID
+     */
+    @Override
+    public void deleteComment(Long commentId) {
+        Comment comment = commentMapper.selectById(commentId);
+        if (comment == null) {
+            throw new RuntimeException("评论不存在");
+        }
+        commentMapper.deleteById(commentId);
+    }
+
     /**
      * 审核帖子
      * @param postId 帖子ID
      * @param status 状态（1未通过，2已通过）
      */
     @Override
-    public void auditPost(Long postId, Integer status) {
+    public void updatePostStatus(Long postId, Integer status) {
         Post post = postMapper.selectById(postId);
         if (post == null) {
             throw new RuntimeException("帖子不存在");
@@ -284,7 +457,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * 删除帖子（逻辑删除）
+     * 删除帖子
      * @param postId 帖子ID
      */
     @Override
@@ -293,9 +466,12 @@ public class AdminServiceImpl implements AdminService {
         if (post == null) {
             throw new RuntimeException("帖子不存在");
         }
-        post.setIsDeleted(1);
-        post.setUpdateTime(LocalDateTime.now());
-        postMapper.updateById(post);
+        
+        // 删除图片
+        postUtils.deletePostImages(post);
+        
+        postMapper.deleteById(postId);
+        commentMapper.delete(new LambdaQueryWrapper<Comment>().eq(Comment::getPostId, postId));
     }
 
     /**

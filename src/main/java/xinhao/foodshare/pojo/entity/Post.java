@@ -41,17 +41,11 @@ public class Post implements Serializable {
     //价格
     private Float price;
 
-    //推荐分数
-    private Integer recommendScore;
-
-    //位置分类(0校内1校外2外卖)
+    //位置分类
     private Integer local;
 
     //审核状态(0未审核1未通过2已通过)
     private Integer status;
-
-    //逻辑删除状态(0,1)
-    private Integer isDeleted;
 
     //发布时间
     private LocalDateTime createTime;
